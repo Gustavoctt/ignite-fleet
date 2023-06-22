@@ -28,6 +28,8 @@ export function Arrival() {
   const { goBack } = useNavigation();
   const realm = useRealm();
 
+  const title = historic?.status === "departure" ? "Chegada" : "Detalhes";
+
   function handleRemoveVehicleUsage() {
     Alert.alert("Cancelar", "Cancelar a utilização do veículo?", [
       { text: "Não", style: "cancel" },
@@ -67,7 +69,7 @@ export function Arrival() {
 
   return (
     <Container>
-      <Header title="Chegada" />
+      <Header title={title} />
       <Content>
         <Label>Placa do veículo</Label>
 
@@ -76,13 +78,14 @@ export function Arrival() {
         <Label>Finalidade</Label>
 
         <Description>{historic?.description}</Description>
-
+      </Content>
+      {historic?.status === "departure" && (
         <Footer>
           <ButtonIcon icon={X} onPress={handleRemoveVehicleUsage} />
 
           <Button title="Registrar chegada" onPress={handleArrivalRegister} />
         </Footer>
-      </Content>
+      )}
     </Container>
   );
 }
