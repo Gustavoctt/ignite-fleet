@@ -1,8 +1,9 @@
-import { ThemeProvider } from "styled-components/native";
-import theme from "./src/theme";
+import "react-native-get-random-values";
 
-import { AppProvider, UserProvider } from "@realm/react";
+import theme from "./src/theme";
 import { REALM_APP_ID } from "@env";
+import { AppProvider, UserProvider } from "@realm/react";
+import { ThemeProvider } from "styled-components/native";
 
 import { SignIn } from "./src/screens/SignIn";
 import { Loading } from "./src/components/Loading";

@@ -7,6 +7,10 @@ import { TextAreaInput } from "../../components/TextAreaInput";
 import { LicensePlateInput } from "../../components/LicensePlateInput";
 import { ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { licensePlateValitedate } from "../../utils/licensePlateValidate";
+import { useRealm } from "../../libs/realm";
+import { useUser } from "@realm/react";
+import { useNavigation } from "@react-navigation/native";
+import { Historic } from "../../libs/realm/schemas/Historic";
 
 const keyboardAvoidingViewBehavior =
   Platform.OS === "android" ? "height" : "position";
@@ -14,17 +18,53 @@ const keyboardAvoidingViewBehavior =
 export function Departure() {
   const [licensePlate, setLicensePlate] = useState("");
   const [description, setDescription] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  const realm = useRealm();
+  const user = useUser();
+  const { goBack } = useNavigation();
 
   const descriptionRef = useRef(null);
   const licensePlateRef = useRef(null);
 
   function handleDepartureRegister() {
-    if (!licensePlateValitedate(licensePlate)) {
-      licensePlateRef.current?.focus();
-      return Alert.alert(
-        "Placa inválida",
-        "A placa é inválida. Por favor informe uma placa correta!"
-      );
+    try {
+      if (!licensePlateValitedate(licensePlate)) {
+        licensePlateRef.current?.focus();
+        return Alert.alert(
+          "Placa inválida",
+          "A placa é inválida. Por favor informe uma placa correta!"
+        );
+      }
+
+      if (description.trim().length === 0) {
+        descriptionRef.current?.focus();
+        return Alert.alert(
+          "Finalidade",
+          "Por favor, informe a finalidade de utilização do veículo!"
+        );
+      }
+
+      setIsRegistering(true);
+
+      realm.write(() => {
+        realm.create(
+          "Historic",
+          Historic.generate({
+            user_id: user!.id,
+            license_plate: licensePlate.toUpperCase(),
+            description,
+          })
+        );
+      });
+
+      Alert.alert("Saída", "Saída do veículo registrada com sucesso.");
+
+      goBack();
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Erro", "Não é possível registrar a saída do veículo.");
+      setIsRegistering(false);
     }
   }
 
