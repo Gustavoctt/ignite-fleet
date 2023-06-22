@@ -1,4 +1,5 @@
 import "react-native-get-random-values";
+import "./src/libs/dayjs";
 
 import theme from "./src/theme";
 import { REALM_APP_ID } from "@env";
