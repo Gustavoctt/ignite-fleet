@@ -1,14 +1,20 @@
-import { useNavigation } from "@react-navigation/native";
+import dayjs from "dayjs";
+import { Alert } from "react-native";
+import { useUser } from "@realm/react";
+import { FlatList } from "react-native";
+import { useEffect, useState } from "react";
+import Toast from "react-native-toast-message";
+import { useQuery, useRealm } from "../../libs/realm";
 import { CarStatus } from "../../components/CarStatus";
+import { useNavigation } from "@react-navigation/native";
 import { HomeHeader } from "../../components/HomeHeader";
 import { Container, Content, Label, Title } from "./styles";
-import { useQuery, useRealm } from "../../libs/realm";
 import { Historic } from "../../libs/realm/schemas/Historic";
-import { useEffect, useState } from "react";
-import { Alert } from "react-native";
 import { HistoricCard, HistoricCardProps } from "../../components/HistoryCard";
-import dayjs from "dayjs";
-import { FlatList } from "react-native";
+import {
+  getLastAsyncTimestamp,
+  saveLastSyncTimestamp,
+} from "../../libs/asyncStorage/asyncStorage";
 
 export function Home() {
   const [vehicleInUse, setVehicleInUse] = useState<Historic | null>(null);
@@ -19,6 +25,7 @@ export function Home() {
 
   const historic = useQuery(Historic);
   const realm = useRealm();
+  const user = useUser();
 
   function handleRegisterMovement() {
     if (vehicleInUse?._id) {
@@ -38,17 +45,19 @@ export function Home() {
     }
   }
 
-  function fetchHistoryVehicle() {
+  async function fetchHistoryVehicle() {
     try {
       const response = historic.filtered(
         "status = 'arrival' SORT(created_at DESC)"
       );
 
+      const lastSync = await getLastAsyncTimestamp();
+
       const formattedHistoric = response.map((item) => {
         return {
           id: item._id.toString(),
           licensePlate: item.license_plate,
-          isSync: false,
+          isSync: lastSync > item.updated_at!.getTime(),
           created: dayjs(item.created_at).format(
             "[Saída em] DD/MM/YYYY [às] HH:mm"
           ),
@@ -65,12 +74,29 @@ export function Home() {
     navigate("arrival", { id });
   }
 
-  useEffect(() => {
-    fetchHistoryVehicle();
-  }, []);
+  async function progressNotification(
+    transferred: number,
+    transferable: number
+  ) {
+    const percentage = (transferred / transferable) * 100;
+
+    if (percentage === 100) {
+      await saveLastSyncTimestamp();
+      await fetchHistoryVehicle();
+
+      Toast.show({
+        type: "info",
+        text1: "Todos os dados estão sincronizado.",
+      });
+    }
+  }
 
   useEffect(() => {
     fetchVehicleInUse();
+  }, []);
+
+  useEffect(() => {
+    fetchHistoryVehicle();
   }, [historic]);
 
   useEffect(() => {
@@ -80,6 +106,32 @@ export function Home() {
       if (realm && !realm.isClosed) {
         realm.removeListener("change", fetchVehicleInUse);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    realm.subscriptions.update((mutableSubs, realm) => {
+      const historyvByUserQuery = realm
+        .objects("Historic")
+        .filtered(`user_id = "${user!.id}"`);
+
+      mutableSubs.add(historyvByUserQuery, { name: "historic_by_user" });
+    });
+  }, [realm]);
+
+  useEffect(() => {
+    const syncSession = realm.syncSession;
+
+    if (!syncSession) return;
+
+    syncSession.addProgressNotification(
+      Realm.ProgressDirection.Upload,
+      Realm.ProgressMode.ReportIndefinitely,
+      progressNotification
+    );
+
+    return () => {
+      syncSession.removeProgressNotification(progressNotification);
     };
   }, []);
 
